@@ -21,7 +21,7 @@ Usage:
   
   Either username and password or client ID and client secret must be provided or the script will not be able to authenticate to your account
 
-  If you do not provide a top llevel organization UUID, it will be fetched based on the credentials provided
+  If you do not provide a top level organization UUID, it will be fetched based on the credentials provided
 
   If you do not provide an organization with the --organizationId/-o flag, all assets for the top level organization will be exported
   
