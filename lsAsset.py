@@ -15,10 +15,12 @@ from storageHandler import StorageHandler
 
 def initArgParse():
     parser = argparse.ArgumentParser(description='List Assets from Anypoint Exchange')
-    parser.add_argument('--username','-u', required=True)
-    parser.add_argument('--password','-p', required=True)
+    parser.add_argument('--username','-u', required=False)
+    parser.add_argument('--password','-p', required=False)
+    parser.add_argument('--client-id','-c', required=False,dest='clientId')
+    parser.add_argument('--client-secret','-s', required=False,dest='clientSecret')
     parser.add_argument('--organizationId','-o', required=False)
-    parser.add_argument('--masterOrganizationId','-m', required=True)
+    parser.add_argument('--masterOrganizationId','-m', required=False)
     parser.add_argument('--output-file','-f',required=False,dest='output')
     parser.add_argument('--database','-d',required=False)
     return parser.parse_args()
@@ -49,7 +51,23 @@ def getAssets(t,o,m):
             out.extend(jsRes)
             params['offset']+=params['limit']
 
-def authenticate(u,p):
+def getOrgId(t):
+    url = 'https://anypoint.mulesoft.com/accounts/api/me'
+    method = 'GET'
+    headers = {'Authorization': 'Bearer '+t}
+    req = urllib.request.Request(url, None,headers, None, False, method)
+    try:
+        with urllib.request.urlopen(req) as res:
+            js = json.loads(res.read().decode('utf-8'))
+        
+        return js['user']['organizationId']
+    except BaseException:
+        print('Invalid credentials or bad response exception')
+        raise
+        #TODO: Handle Errors more granularly
+
+
+def authenticatePassword(u,p):
     url = 'https://anypoint.mulesoft.com/accounts/login'
     method = 'POST'
     values = {'username': u, 'password': p}
@@ -65,13 +83,40 @@ def authenticate(u,p):
         raise
         #TODO: Handle Errors more granularly
 
+def authenticateClientCredentials(ci,cs):
+    url = 'https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token'
+    method = 'POST'
+    values = {'client_id': ci, 'client_secret': cs, 'grant_type': 'client_credentials'}
+    data = urllib.parse.urlencode(values)
+    data = data.encode('ascii')
+    req = urllib.request.Request(url, data, {}, None, False, method)
+    try:
+        with urllib.request.urlopen(req) as res:
+            js = json.loads(res.read().decode('utf-8'))
+        return js['access_token']
+    except BaseException:
+        print('Invalid credentials or bad response exception')
+        raise
+
+def authenticate(u,p,ci,cs):
+    if u is not None and p is not None:
+        return authenticatePassword(u,p)
+    elif ci is not None and cs is not None:
+        return authenticateClientCredentials(ci,cs)
+    else:
+        raise BaseException('No credentials provided, provide  username and password or client id and client secret')
+
 if __name__ == '__main__':
 ### Setup resources needed to run program
     args = initArgParse()
 
 ### get bearer token
 ### handle bad credentials
-    token = authenticate(args.username,args.password)
+    token = authenticate(args.username,args.password,args.clientId,args.clientSecret)
+
+### get org ID if not provided
+    if args.masterOrganizationId is None:
+        args.masterOrganizationId = getOrgId(token)
 
 ###get assets
     assets = getAssets(token, args.organizationId, args.masterOrganizationId)

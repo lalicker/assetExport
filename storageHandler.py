@@ -47,3 +47,4 @@ class StorageHandler(object):
 
 if __name__ == '__main__':
     ### tests can be added here if needed and run directly
+    exit
