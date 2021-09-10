@@ -10,8 +10,8 @@ import csv
 from storageHandler import StorageHandler
 
 #TODO Add meaningful logging
-#logging.basicConfig(level=logging.ERROR, filename='/var/log/lsAsset.log')
 #logging.basicConfig(level=logging.ERROR, filename='./lsAsset.log')
+#logging.basicConfig(level=logging.DEBUG, filename='./lsAsset.debug.log')
 
 def initArgParse():
     parser = argparse.ArgumentParser(description='List Assets from Anypoint Exchange')
@@ -26,8 +26,7 @@ def initArgParse():
     return parser.parse_args()
 
 def getAssets(t,o,m):
-    url = 'https://anypoint.mulesoft.com/exchange/api/v2/assets/search'
-    method = 'GET'
+    path = 'exchange/api/v2/assets/search'
     headers = {'Authorization': 'Bearer '+t}
     params = {}
     params['masterOrganizationId'] = m
@@ -37,10 +36,9 @@ def getAssets(t,o,m):
     params['offset'] = 0
     out = list()
     while True:
-        req = urllib.request.Request(url+'?%s' % urllib.parse.urlencode(params),None,headers,None,False,method)
         try:
-            with urllib.request.urlopen(req) as res:
-                jsRes = json.loads(res.read().decode('utf-8'))
+            response = getAPI(path, params, headers)
+            jsRes = json.loads(response)
         except BaseException:
             print('Something went wrong')
             raise
@@ -52,14 +50,11 @@ def getAssets(t,o,m):
             params['offset']+=params['limit']
 
 def getOrgId(t):
-    url = 'https://anypoint.mulesoft.com/accounts/api/me'
-    method = 'GET'
+    path = 'accounts/api/me'
     headers = {'Authorization': 'Bearer '+t}
-    req = urllib.request.Request(url, None,headers, None, False, method)
     try:
-        with urllib.request.urlopen(req) as res:
-            js = json.loads(res.read().decode('utf-8'))
-        
+        response = getAPI(path, None, headers)
+        js = json.loads(response)
         return js['user']['organizationId']
     except BaseException:
         print('Invalid credentials or bad response exception')
@@ -68,15 +63,11 @@ def getOrgId(t):
 
 
 def authenticatePassword(u,p):
-    url = 'https://anypoint.mulesoft.com/accounts/login'
-    method = 'POST'
+    path = 'accounts/login'
     values = {'username': u, 'password': p}
-    data = urllib.parse.urlencode(values)
-    data = data.encode('ascii')
-    req = urllib.request.Request(url, data, {}, None, False, method)
     try:
-        with urllib.request.urlopen(req) as res:
-            js = json.loads(res.read().decode('utf-8'))
+        response = postAPI(path, values)
+        js = json.loads(response)
         return js['access_token']
     except BaseException:
         print('Invalid credentials or bad response exception')
@@ -84,15 +75,11 @@ def authenticatePassword(u,p):
         #TODO: Handle Errors more granularly
 
 def authenticateClientCredentials(ci,cs):
-    url = 'https://anypoint.mulesoft.com/accounts/api/v2/oauth2/token'
-    method = 'POST'
+    path = 'accounts/api/v2/oauth2/token'
     values = {'client_id': ci, 'client_secret': cs, 'grant_type': 'client_credentials'}
-    data = urllib.parse.urlencode(values)
-    data = data.encode('ascii')
-    req = urllib.request.Request(url, data, {}, None, False, method)
     try:
-        with urllib.request.urlopen(req) as res:
-            js = json.loads(res.read().decode('utf-8'))
+        response = postAPI(path, values)
+        js = json.loads(response)
         return js['access_token']
     except BaseException:
         print('Invalid credentials or bad response exception')
@@ -106,9 +93,33 @@ def authenticate(u,p,ci,cs):
     else:
         raise BaseException('No credentials provided, provide  username and password or client id and client secret')
 
+def getAPI(path, parameters = None, headers = {}):
+    return callAPI(path, parameters, None, headers, 'GET')
+
+def postAPI(path, data, headers={}):
+    return callAPI(path, None, data, headers, 'POST')
+
+def callAPI(path, parameters, data, headers, method):
+    url = scheme + '://' + domain + '/'
+    url += path
+    if parameters is not None:
+        url += '?%s' % urllib.parse.urlencode(parameters)
+    logging.debug('path: %s, parameters: %s, data: %s, headers: %s, method: %s',path, parameters, data, headers, method)
+    if data is not None:
+        data = urllib.parse.urlencode(data).encode('ascii')
+    headers = {} if headers is None else headers
+    req = urllib.request.Request(url, data, headers, None, False, method)
+    try:
+        with urllib.request.urlopen(req) as res:
+            return res.read().decode('utf-8')
+    except BaseException:
+        print('Error with request')
+
 if __name__ == '__main__':
 ### Setup resources needed to run program
     args = initArgParse()
+    scheme = 'https'
+    domain = 'anypoint.mulesoft.com'
 
 ### get bearer token
 ### handle bad credentials
